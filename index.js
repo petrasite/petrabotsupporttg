@@ -1,29 +1,33 @@
+require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
-const express = require('express');
-const app = express();
 
-const BOT_TOKEN = '7856283741:AAHWGZz4fk0F2AU7auwsv82p_xeOtr7N9LM';
-const ADMIN_ID = '1315029047';
+const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+const requests = {};
 
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+bot.on('message', msg => {
+  if (msg.text.startsWith('/reply')) return;
 
-const userMessages = {}; // userId: lastMessageId
+  const code = 'Q' + Math.floor(1000 + Math.random() * 9000);
 
-bot.on('message', (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text;
+  requests[code] = {
+    chatId: msg.chat.id,
+    user: msg.from.first_name || 'Без имени',
+    text: msg.text
+  };
 
+  bot.sendMessage(process.env.ADMIN_ID, `📩 Новый вопрос от ${requests[code].user}:\n"${msg.text}"\nКод: ${code}`);
+  bot.sendMessage(msg.chat.id, `✅ Ваш вопрос принят!\nКод: ${code}\nОжидайте ответа.`);
+});
 
-  if (chatId != ADMIN_ID) {
-    userMessages[chatId] = msg.message_id;
-    bot.sendMessage(ADMIN_ID, `Сообщение от ${chatId}:\n${text}`);
+bot.onText(/\/reply (\w+) (.+)/, (msg, match) => {
+  const code = match[1];
+  const answer = match[2];
+
+  if (requests[code]) {
+    const targetId = requests[code].chatId;
+    bot.sendMessage(targetId, `💬 Ответ от поддержки:\n${answer}`);
+    bot.sendMessage(msg.chat.id, `✅ Ответ по коду ${code} отправлен.`);
   } else {
-
-    const match = text.match(/^\/ответ (\d+) (.+)/);
-    if (match) {
-      const targetId = match[1];
-      const replyText = match[2];
-      bot.sendMessage(targetId, `Ответ поддержки:\n${replyText}`);
-    }
+    bot.sendMessage(msg.chat.id, `❌ Код ${code} не найден.`);
   }
 });
