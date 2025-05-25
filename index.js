@@ -1,36 +1,50 @@
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
+const dotenv = require('dotenv');
+dotenv.config();
+
 const app = express();
 
-const BOT_TOKEN = '7856283741:AAHWGZz4fk0F2AU7auwsv82p_xeOtr7N9LM';
-const ADMIN_ID = '1315029047';
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const ADMIN_ID = process.env.ADMIN_ID; // укажи свой TG ID в .env
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-const userMessages = {}; // userId: lastMessageId
+const userMessages = {}; // userId -> lastMessageId
 
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  // Если это пользователь — пересылаем админу
-  if (chatId != ADMIN_ID) {
+  // Пользователь — пересылаем админу
+  if (String(chatId) !== ADMIN_ID) {
     userMessages[chatId] = msg.message_id;
-    bot.sendMessage(ADMIN_ID, `Сообщение от ${chatId}:\n${text}`);
+    bot.sendMessage(ADMIN_ID, `📩 Сообщение от ${chatId}:\n${text}`);
   } else {
-    // Если это админ — парсим сообщение вида "/ответ 123456789 текст"
+    // Админ — проверяем команду
     const match = text.match(/^\/ответ (\d+) (.+)/);
+
     if (match) {
       const targetId = match[1];
       const replyText = match[2];
-      bot.sendMessage(targetId, `Ответ поддержки:\n${replyText}`);
+
+      bot.sendMessage(targetId, `💬 Ответ от поддержки:\n${replyText}`)
+        .then(() => {
+          bot.sendMessage(ADMIN_ID, `✅ Ответ отправлен пользователю ${targetId}`);
+        })
+        .catch((err) => {
+          bot.sendMessage(ADMIN_ID, `❌ Ошибка при отправке ответа: ${err.message}`);
+        });
+    } else {
+      bot.sendMessage(ADMIN_ID, `⚠️ Неверный формат. Используй:\n/ответ ID сообщение`);
     }
   }
 });
 
-// Express (на случай, если хочешь подключить к сайту)
+// Express-заглушка (для Render)
 app.get('/', (req, res) => {
-  res.send('Бот работает');
+  res.send('Бот работает.');
 });
 
-app.listen(3000, () => console.log('Сервер запущен на http://localhost:3000'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Сервер запущен на http://localhost:${PORT}`));
